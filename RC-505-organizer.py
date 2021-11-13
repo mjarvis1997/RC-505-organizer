@@ -2,49 +2,132 @@
 #
 # Readme here for details
 # https://github.com/mjarvis1997/RC-505-organizer
+#
 
 import os, shutil, sys
 from os.path import exists
+from pydub import AudioSegment
 
-# name of new root folder
-root = "505-organized"
+# name of new root folders
+d_root = "505-organized"
+d_stems = d_root + "/stems"
+d_masters = d_root + "/masters"
+
+# global vars
+mode = "0"
+stemsFolderPath = ""
 
 # if root folder already exists
-if(exists(root)):
+if(exists(d_root)):
    print("ERROR: Folder named '505-organized' already exists, exiting program to avoid overwriting any existing files\nDelete or move the existing '505-organized' folder and then run again")
    sys.exit()
 
-# create root folder
-os.mkdir(root)
+def createFolderForSongStems(songNumber):
+
+    # set path of curr stems folder
+    global stemsFolderPath
+    stemsFolderPath = d_stems + "/" + str(songNumber)
+
+    # create the folders
+    os.mkdir(stemsFolderPath)
+
+def exportMaster(songNumber, tracks, numOfTracks):
+    
+    # if only one track
+    if numOfTracks == 1:
+        tracks[0].export(d_masters + "/" + str(songNumber) + ".mp3", format="mp3")
+
+    # if more than 1 track
+    if numOfTracks > 1:
+
+        # store first track in master
+        master = tracks[0]
+
+        # overlay rest of tracks to master
+        for i in range(1, numOfTracks):
+            master = master.overlay(tracks[i], position = 0)
+        
+        # make loop 4 times as long
+        master = master * 4
+
+        # export master
+        file_handle = master.export(d_masters + "/" + str(songNumber) + ".mp3", format="mp3")
 
 # function to move files from individual folders into new aggregate numbered folder
-def moveSong(songNumber):
+def findTracksForSong(songNumber):
 
-    # name of new song folder
-    newFolderPath = root + "/" + str(songNumber)
+    # create folder for song stems
+    createFolderForSongStems(songNumber) 
 
-    # create new folder for song
-    os.mkdir(newFolderPath)
+    # array to store audio tracks as we find them
+    tracks = []
 
     # for each track in the current song
     for i in range(1,6):
 
         # construct file paths
         currFolderPath = str(songNumber).zfill(3) + "_" + str(i)
-        currFilePath = currFolderPath + "/" + currFolderPath + ".WAV"
 
         # if folder exists for current track
-        if(exists(currFolderPath)):
+        if exists(currFolderPath):
 
-            # if file exists in folder
-            if os.listdir(currFolderPath):
+            # determine if the folder is empty
+            currFolderContents = os.listdir(currFolderPath)
+            folderIsntEmpty = len(currFolderContents)
+            
+            if(folderIsntEmpty):
 
-                # move file to new folder
-                shutil.copy(currFilePath, newFolderPath)
+                # mode 0 - only moves files that have default names
+                if mode == '0':
 
+                    # determine if the folder contains a file with the expected name
+                    expectedFilePath = currFolderPath + "/" + currFolderPath + ".WAV"
+                    fileHasExpectedName = exists(expectedFilePath)
+
+                    if fileHasExpectedName:
+                    
+                        # copy file to new folder
+                        shutil.copy(expectedFilePath, stemsFolderPath)
+
+                        # add track to our list
+                        tracks.append(AudioSegment.from_wav(expectedFilePath))
+                        
+                # mode 1 - moves files with custom names as well
+                elif mode == '1':
+
+                    actualFilePath = currFolderPath + "/" + currFolderContents[0]
+                    
+                    # copy file to new folder
+                    shutil.copy(actualFilePath, stemsFolderPath)
+                    
+                    # add track to our list
+                    tracks.append(AudioSegment.from_wav(actualFilePath))
+
+    numOfTracks = len(tracks)
+
+    print("song #: " + str(songNumber) + " | found " + str(numOfTracks) + " tracks")
+
+    # if we found tracks for this song
+    if numOfTracks:
+
+        # export mp3 master that combines the tracks
+        exportMaster(songNumber, tracks, numOfTracks)
+        return 1
+    else:
+        return 0
 
 def findSongs():
-    # counter for number of songs
+
+    # let user choose mode
+    global mode 
+    mode = input("Please choose desired mode:\n0: Only move file names that match the default RC-505 naming style\n1: Move all files no matter what their name is")
+    
+    # create root folders
+    os.mkdir(d_root)
+    os.mkdir(d_masters)
+    os.mkdir(d_stems)
+    
+    # count number of songs added
     numOfSongs = 0
 
     # for each song in the 505's folders
@@ -62,13 +145,17 @@ def findSongs():
                 # if there are files in the current folder
                 if os.listdir(folderName):
 
-                    numOfSongs += 1
+                    # attempt to move WAV files for this song to new folder      
+                    if(findTracksForSong(i)):
+                        numOfSongs += 1
 
-                    # move WAV files for this song to new folder      
-                    moveSong(i)
+                    # move on to next song
                     break
 
-    print("SUCCESS: Moved files for " + str(numOfSongs) + " songs to '505-organized'")
+    if numOfSongs > 0:
+        print("SUCCESS: Moved files for " + str(numOfSongs) + " songs to '505-organized'")
+    else:
+        print("FAILURE: No valid files found" )
 
 # call main function
 findSongs()
