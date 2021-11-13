@@ -16,6 +16,7 @@ d_masters = d_root + "/masters"
 # global vars
 mode = "0"
 stemsFolderPath = ""
+numOfTimesToRepeat = 1
 
 # if root folder already exists
 if(exists(d_root)):
@@ -40,18 +41,34 @@ def exportMaster(songNumber, tracks, numOfTracks):
     # if more than 1 track
     if numOfTracks > 1:
 
-        # store first track in master
-        master = tracks[0]
+        # figure out the longest loop
+        longestTrackLength = 0.0
+        for track in tracks:
+            if track.duration_seconds > longestTrackLength:
+                longestTrackLength = track.duration_seconds
 
-        # overlay rest of tracks to master
-        for i in range(1, numOfTracks):
-            master = master.overlay(tracks[i], position = 0)
+        # scale tracks to make them equally long
+        scaledTracks = []
+        for track in tracks:
+            currTrackLength = track.duration_seconds
+
+            # what factor to multiply this track by
+            currTrackRatio = int(round(longestTrackLength / currTrackLength))
+            scaledTracks.append(track * currTrackRatio)
         
-        # make loop 4 times as long
-        master = master * 4
+        # store first scaled track in master
+        master = scaledTracks[0]
+
+        # overlay rest of scaled tracks to master
+        for i in range(1, numOfTracks):
+            master = master.overlay(scaledTracks[i], position = 0)
+
+        # loop the track based on user selection
+        global numOfTimesToRepeat        
+        master = master * numOfTimesToRepeat
 
         # export master
-        file_handle = master.export(d_masters + "/" + str(songNumber) + ".mp3", format="mp3")
+        master.export(d_masters + "/" + str(songNumber) + ".mp3", format="mp3")
 
 # function to move files from individual folders into new aggregate numbered folder
 def findTracksForSong(songNumber):
@@ -118,10 +135,12 @@ def findTracksForSong(songNumber):
 
 def findSongs():
 
-    # let user choose mode
+    # let user choose config
     global mode 
-    mode = input("Please choose desired mode:\n0: Only move file names that match the default RC-505 naming style\n1: Move all files no matter what their name is")
-    
+    mode = input("Please choose desired mode:\n0: Only move file names that match the default RC-505 naming style\n1: Move all files no matter what their name is\n")
+    global numOfTimesToRepeat
+    numOfTimesToRepeat = int(input("Would you like to extend the length of the masters? \nEnter the number of times the loop should repeat\n(1 is default)\n"))
+
     # create root folders
     os.mkdir(d_root)
     os.mkdir(d_masters)
