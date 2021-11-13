@@ -34,11 +34,9 @@ def createFolderForSongStems(songNumber):
 
 def exportMaster(songNumber, tracks, numOfTracks):
     
-    # if only one track
     if numOfTracks == 1:
         tracks[0].export(d_masters + "/" + str(songNumber) + ".mp3", format="mp3")
 
-    # if more than 1 track
     if numOfTracks > 1:
 
         # figure out the longest loop
